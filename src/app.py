@@ -19,7 +19,20 @@ current_dir = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
           "static")), name="static")
 
-# In-memory activity database
+from typing import Dict, List, Optional
+from pydantic import BaseModel, EmailStr
+
+# In-memory user and activity databases
+class User(BaseModel):
+    email: EmailStr
+    name: str
+    grade: Optional[str] = None
+    interests: Optional[List[str]] = []
+    skills: Optional[List[str]] = []
+    avatar_url: Optional[str] = None
+
+users: Dict[str, User] = {}
+
 activities = {
     "Chess Club": {
         "description": "Learn strategies and compete in chess tournaments",
@@ -83,9 +96,42 @@ def root():
     return RedirectResponse(url="/static/index.html")
 
 
+
 @app.get("/activities")
 def get_activities():
     return activities
+
+
+# --- User Registration & Profile Endpoints ---
+@app.post("/users/register")
+def register_user(user: User):
+    if user.email in users:
+        raise HTTPException(status_code=400, detail="User already exists")
+    users[user.email] = user
+    return {"message": f"User {user.email} registered successfully"}
+
+
+@app.get("/users/{email}")
+def get_user_profile(email: str):
+    user = users.get(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@app.put("/users/{email}")
+def update_user_profile(email: str, updated: User):
+    if email not in users:
+        raise HTTPException(status_code=404, detail="User not found")
+    # Only update fields that are not None
+    user = users[email]
+    user.name = updated.name or user.name
+    user.grade = updated.grade or user.grade
+    user.interests = updated.interests or user.interests
+    user.skills = updated.skills or user.skills
+    user.avatar_url = updated.avatar_url or user.avatar_url
+    users[email] = user
+    return {"message": f"User {email} updated successfully"}
 
 
 @app.post("/activities/{activity_name}/signup")
